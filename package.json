@@ -1,0 +1,28 @@
+{
+  "name": "zk-sla",
+  "version": "1.0.0",
+  "description": "Zero-Knowledge Service-Level Proofs - Full-Stack Demo",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "circuits",
+    "verifier",
+    "app"
+  ],
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "dev": "./scripts/dev.sh",
+    "build": "./scripts/build-all.sh",
+    "deploy": "tsx scripts/deploy.ts",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

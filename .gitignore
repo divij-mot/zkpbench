@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Circuit artifacts
+circuits/**/Proving.key
+circuits/**/proving.key
+circuits/**/verification.key
+circuits/**/proofs/
+circuits/**/target/
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# TypeScript
+*.tsbuildinfo
+
+# Temporary
+tmp/
+temp/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.turbo/
