@@ -1,0 +1,12 @@
+{
+  "name": "@zk-sla/circuits",
+  "private": true,
+  "scripts": {
+    "check": "cd rtt_threshold && nargo check",
+    "compile": "cd rtt_threshold && nargo compile",
+    "prove": "cd rtt_threshold && nargo prove",
+    "verify": "cd rtt_threshold && nargo verify",
+    "test": "cd rtt_threshold && nargo test",
+    "clean": "cd rtt_threshold && rm -rf target proofs"
+  }
+}
