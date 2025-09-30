@@ -1,4 +1,4 @@
-# 🔐 Privacy & Trust Model
+# 🔐 Privacy & Trust Model.
 
 ## TL;DR
 
