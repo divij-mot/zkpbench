@@ -24,43 +24,40 @@ fi
 
 echo "✅ Prerequisites check passed"
 
-# Start services in parallel
-echo "🔧 Starting services..."
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Start frontend in background
-echo "📱 Starting frontend (Next.js)..."
-cd app && npm run dev &
-FRONTEND_PID=$!
-
-# Wait a moment
-sleep 2
-
-# Start backend in background
-echo "🔗 Starting backend (Verifier service)..."
-cd ../verifier && npm run dev &
-BACKEND_PID=$!
+# Start Next.js app (includes frontend + API routes)
+echo "🔧 Starting Next.js application..."
+cd "$PROJECT_ROOT/app" && npm run dev &
+APP_PID=$!
 
 # Wait a moment
-sleep 2
+sleep 3
 
 echo ""
 echo "🎉 zk-SLA development environment is ready!"
 echo ""
 echo "📍 Services running:"
-echo "   Frontend: http://localhost:3000"
-echo "   Backend:  ws://localhost:3001"
+echo "   Application: http://localhost:3000"
+echo "   - Frontend (Next.js)"
+echo "   - Backend API routes"
+echo "   - ZK proving (browser-based)"
 echo ""
 echo "🔧 Development commands:"
 echo "   Test contracts: cd contracts && forge test"
-echo "   Deploy locally: cd contracts && forge script script/Deploy.s.sol"
+echo "   Deploy to testnet: cd contracts && forge script script/DeployProduction.s.sol --broadcast"
 echo ""
-echo "Press Ctrl+C to stop all services"
+echo "📝 Logs: tail -f $PROJECT_ROOT/app/dev.log"
+echo ""
+echo "Press Ctrl+C to stop"
 
 # Function to cleanup on exit
 cleanup() {
     echo ""
     echo "🛑 Stopping services..."
-    kill $FRONTEND_PID $BACKEND_PID 2>/dev/null
+    kill $APP_PID 2>/dev/null
     echo "✅ All services stopped"
     exit 0
 }
@@ -68,5 +65,5 @@ cleanup() {
 # Register cleanup function
 trap cleanup SIGINT SIGTERM
 
-# Wait for services
+# Wait for service
 wait

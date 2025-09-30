@@ -174,10 +174,140 @@ Each tier requires proving that ≥28 out of 32 RTT samples meet the threshold.
 
 ## 🔐 Security & Privacy
 
-- **Zero-Knowledge**: Raw RTT measurements never leave the user's device
-- **Anti-Replay**: Fresh cryptographic nonces prevent replay attacks
-- **Merkle Commitment**: All samples are committed in a Merkle tree root on-chain
-- **m-of-n Proofs**: Users prove compliance without revealing all measurements
+### Why This Can't Be Done with Traditional Means
+
+Traditional performance verification systems have fundamental privacy and trust issues:
+
+1. **Centralized Trust Problem**
+   - Traditional systems require users to **send raw RTT data** to a central server
+   - The server operator can see exact latencies, timestamps, and IP addresses
+   - Users must trust the operator won't log, sell, or misuse this data
+   - **No way to prove** the operator isn't collecting private telemetry
+
+2. **Data Leakage**
+   - Raw RTT logs reveal:
+     - Geographic location patterns
+     - ISP and network infrastructure details
+     - Usage times and frequency
+     - Network topology information
+   - This data is valuable for targeted advertising and surveillance
+
+3. **Audit Impossibility**
+   - Even if a company claims "we don't log data," **you can't verify it**
+   - Closed-source backends can collect anything without detection
+   - Database logs, analytics tools, and error reporting can leak data
+   - Third-party dependencies may exfiltrate information
+
+4. **Manipulation Risk**
+   - Centralized servers can arbitrarily issue performance badges
+   - No cryptographic proof that tests were actually conducted
+   - Server operator could sell badges or manipulate results
+
+### How Zero-Knowledge Solves This
+
+Our ZK approach provides **cryptographic guarantees** that traditional systems cannot:
+
+**1. Provable Privacy**
+- Raw RTT measurements **never leave your browser**
+- Only a mathematical proof is generated and submitted
+- The proof reveals **only**: "≥28 of 32 samples were ≤150ms"
+- Actual latency values, timestamps, and sequence remain hidden
+
+**2. Verifiable Non-Collection**
+- **Open source contracts**: All on-chain verification logic is public
+- **Open source frontend**: Review the code to confirm no data leaves your device
+- **Mathematical guarantee**: The ZK proof system cannot extract hidden information
+- **Blockchain transparency**: All transactions are public and auditable
+
+**3. How You Can Verify We Don't Collect Data**
+
+You can personally audit the system:
+
+```bash
+# 1. Inspect the frontend source code
+git clone https://github.com/your-org/zk-sla
+cd app
+grep -r "fetch\|axios\|XMLHttpRequest" src/  # Check for network calls
+
+# 2. Monitor network traffic during testing
+# Open browser DevTools → Network tab → Run test
+# You'll see ONLY:
+#   - WebSocket connection for RTT challenges (ephemeral, no logging)
+#   - One transaction to submit proof (contains no raw data)
+
+# 3. Verify the smart contract
+# Visit Basescan, read the contract source code
+# The verifyAndMint() function accepts:
+#   - proof (mathematical object, not raw data)
+#   - public inputs (threshold, sample count, epoch)
+# It does NOT accept or store individual RTT measurements
+```
+
+**4. Cryptographic Properties**
+
+- **Zero-Knowledge**: Prover (you) reveals no information beyond "statement is true"
+- **Soundness**: Cannot create fake proofs (computational security)
+- **Completeness**: Valid proofs always verify correctly
+- **Non-Malleability**: Proofs cannot be modified or replayed
+
+### Privacy Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  YOUR BROWSER (Private)                                     │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 1. Receive 32 RTT challenges                        │   │
+│  │ 2. Measure latencies: [12ms, 45ms, 89ms, ...]      │   │
+│  │ 3. Generate ZK proof of "≥28 ≤ 150ms"              │   │
+│  │                                                      │   │
+│  │ ⚠️  Raw data NEVER transmitted                      │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           │ Submit: proof + public inputs
+                           ▼
+                  ┌────────────────────┐
+                  │  Smart Contract    │
+                  │  (Public, Auditable)│
+                  │                    │
+                  │  Verifies proof ✓  │
+                  │  Mints badge       │
+                  └────────────────────┘
+```
+
+### What Information IS Public?
+
+To be transparent, here's what IS visible on-chain:
+
+- **Your wallet address**: Public (required for badge minting)
+- **Threshold you claimed**: e.g., "≤150ms" (from public inputs)
+- **Epoch ID**: Which test session (for Merkle root lookup)
+- **Transaction hash**: Standard blockchain record
+
+What remains PRIVATE:
+- ❌ Individual RTT measurements
+- ❌ Exact latency values
+- ❌ Timestamps of samples
+- ❌ Which 28 samples you selected
+- ❌ Your IP address or geographic location
+- ❌ Your ISP or network details
+
+### Trust Assumptions
+
+We're honest about what you still need to trust:
+
+1. **Verifier Service**: Must provide authentic RTT challenges
+   - Mitigation: Nonces are cryptographically random
+   - Future: Multi-verifier decentralization
+
+2. **Browser Environment**: Must execute code correctly
+   - Mitigation: Use open-source browsers with security audits
+   - JavaScript VM is sandboxed from network
+
+3. **Blockchain Security**: Base Sepolia must remain secure
+   - Mitigation: Use audited L2 with strong validator set
+
+**Crucially, you do NOT need to trust us** with your performance data—the ZK proof system makes data collection mathematically impossible.
 
 ## 🛠️ Technical Details
 
