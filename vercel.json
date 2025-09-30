@@ -1,32 +1,12 @@
 {
-  "buildCommand": "pnpm run build",
+  "buildCommand": "cd app && npm run build",
   "framework": "nextjs",
-  "installCommand": "pnpm install",
+  "installCommand": "cd app && npm install",
   "outputDirectory": "app/.next",
   "functions": {
-    "app/api/**/*.ts": {
+    "app/app/api/**/*.ts": {
       "runtime": "nodejs20.x",
-      "regions": ["iad1"]
+      "maxDuration": 30
     }
-  },
-  "env": {
-    "NEXT_PUBLIC_CHAIN_ID": "84532",
-    "NEXT_PUBLIC_RPC_URL": "https://sepolia.base.org"
-  },
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
-      ]
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/app/api/:path*"
-    }
-  ]
+  }
 }
