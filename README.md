@@ -1,409 +1,215 @@
-# zk-SLA: Zero-Knowledge Service-Level Proofs
+# zk-SLA: Zero-Knowledge Network Performance Badges
 
-**A zero-knowledge speed test: prove you met an SLA and mint the proof on-chain — no logs, no leaks.**
+A decentralized application that uses **zero-knowledge proofs** to verify network performance without revealing raw latency data. Users prove they meet SLA thresholds (Diamond <15ms, Gold <50ms, Silver <100ms) and mint ERC-1155 badges on Base Sepolia.
 
-![zk-SLA Demo](https://img.shields.io/badge/Status-Demo%20Ready-brightgreen)
-![Next.js](https://img.shields.io/badge/Next.js-15-black)
-![Solidity](https://img.shields.io/badge/Solidity-0.8.25-blue)
-![Noir](https://img.shields.io/badge/Noir-ZK%20Circuits-purple)
+## 🏗️ Architecture Overview
 
-zk-SLA enables users to prove their network performance privately using zero-knowledge proofs. Users can demonstrate they met specific RTT (Round Trip Time) Service Level Agreements without revealing their actual measurements, IP addresses, or timestamps.
+```
+User Browser              Backend Verifier           Blockchain (Base Sepolia)
+    │                           │                            │
+    │──── 1. Run Test ─────────>│                            │
+    │    (32 RTT samples)        │                            │
+    │                            │                            │
+    │<─── 2. Challenges ─────────│                            │
+    │    (nonces + timestamps)   │                            │
+    │                            │                            │
+    │──── 3. Submit RTTs ────────>│                            │
+    │    (timed responses)       │                            │
+    │                            │                            │
+    │                            │──── 4. Finalize Epoch ────>│
+    │                            │    Build Merkle tree       │ EpochManager
+    │                            │    Commit root to chain    │ (stores roots)
+    │                            │                            │
+    │<─── 5. Fetch Root ─────────┼────────────────────────────│
+    │                            │                            │
+    │──── 6. Generate ZK Proof ──>│                            │
+    │    (prove best 28/32       │                            │
+    │     samples meet threshold)│                            │
+    │                            │                            │
+    │──── 7. Mint Badge ─────────────────────────────────────>│
+    │    (submit proof)          │                            │ ZkSLA1155
+    │                            │                            │ (verifies + mints)
+    │<─── 8. Badge NFT ──────────────────────────────────────│
+```
 
-## ✨ Features
+## 🔐 Zero-Knowledge Proof Flow
 
-- **🛡️ Zero-Knowledge Privacy**: Prove performance without revealing raw RTT data
-- **⚡ Real-Time Testing**: 32 cryptographic challenges over 45 seconds
-- **🏆 Tiered Badges**: ERC-1155 NFTs for different performance levels (≤75ms, ≤150ms, ≤300ms)
-- **🔗 On-Chain Verification**: Smart contracts verify proofs before minting badges
-- **🎨 Sleek UI**: Modern, responsive interface with wallet integration
-- **⚡ Fast Proving**: Browser-based ZK proof generation in <20 seconds
+### **What is being proven?**
+> "I have 28 samples (out of 32) where each RTT ≤ threshold, and these samples are in the committed Merkle tree"
 
-## 🏗️ Architecture
+### **What remains private?**
+- Individual RTT values (only the backend sees raw data)
+- Which specific 28 samples were selected
+- The Merkle proof path
 
-### Components
+### **What is public?**
+- The Merkle root (committed on-chain)
+- The threshold being claimed (15ms, 50ms, or 100ms)
+- That you passed (proof verifies)
+- Your actual worst RTT of the best 28 (stored on-chain for leaderboard transparency)
 
-1. **Frontend (Next.js)** - Wallet connection, test interface, proof generation UI
-2. **Verifier Service (Node.js)** - WebSocket challenges, RTT measurement, Merkle tree construction
-3. **ZK Circuits (Noir)** - Zero-knowledge proof generation for m-of-n RTT compliance
-4. **Smart Contracts (Solidity)** - On-chain proof verification and badge minting
+## 📋 Step-by-Step Process
 
-### Flow
+### **Step 1: Network Performance Test**
+- **What happens:** User runs 32 RTT challenge-response tests over 45 seconds
+- **Technology:**
+  - WebSocket connections (Next.js API routes)
+  - Challenge-response protocol with server-generated nonces
+  - Timestamp validation (1.5s + 3s grace period per challenge)
+- **Security:** Flow tokens bind test → proof → mint, preventing reuse attacks
 
-1. **Connect Wallet** → User connects Web3 wallet
-2. **Run Test** → WebSocket challenges measure RTTs in real-time
-3. **Generate Proof** → Browser creates ZK proof of performance
-4. **Mint Badge** → Smart contract verifies proof and mints ERC-1155 badge
+### **Step 2: Merkle Tree Construction**
+- **What happens:** Backend builds a Poseidon Merkle tree from all user sessions in an epoch
+- **Technology:**
+  - **Poseidon hash function** (ZK-friendly hash, gas-efficient for SNARKs)
+  - **Epoch system** (5-minute windows batch multiple users)
+  - **Leaf structure:** `H(index || nonce || rtt_ms)` prevents replay attacks
+- **Storage:** Redis Cloud (session data, epoch tracking)
+
+### **Step 3: On-Chain Root Commitment**
+- **What happens:** Backend commits Merkle root to `EpochManager` contract
+- **Smart Contract:** `EpochManager.sol` (Solidity + Foundry)
+  - Stores `mapping(uint256 epoch => bytes32 root)`
+  - Only authorized verifier can commit roots
+  - Emits `EpochFinalized` event
+- **Blockchain:** Base Sepolia testnet
+- **RPC:** Alchemy + Base Public RPC
+
+### **Step 4: Zero-Knowledge Proof Generation**
+- **What happens:** User's browser generates a SNARK proof locally
+- **ZK Circuit:** Noir language (`circuits/rtt_threshold/src/main.nr`)
+  ```
+  Inputs (private):
+    - indices[28]: which samples to use
+    - rtts[28]: the RTT values
+  Inputs (public):
+    - root: Merkle root from blockchain
+    - threshold: tier being claimed (15/50/100)
+    - m=28, n=32
+  
+  Constraints:
+    1. All 28 RTTs ≤ threshold
+    2. All 28 samples verify against Merkle root
+    3. All indices are unique and < 32
+  ```
+- **Proving System:**
+  - **Noir** (domain-specific language for zero-knowledge circuits)
+  - **Barretenberg (bb.js)** (PLONK-based proving system, runs in browser)
+  - Proving time: ~10-15 seconds in-browser
+- **Output:** 256-byte proof + public inputs
+
+### **Step 5: Proof Verification & Badge Minting**
+- **What happens:** User submits proof to `ZkSLA1155` contract, which verifies and mints badge
+- **Smart Contract:** `ZkSLA1155.sol` (ERC-1155 multi-token standard)
+  - Calls `RttThresholdVerifier.verifyProof(proof, publicInputs)`
+  - Checks Merkle root matches `EpochManager.rootOf(epoch)`
+  - Validates tier threshold is supported (15/50/100)
+  - Prevents double-minting (stores `hasMinted[user][epoch][tier]`)
+  - Allows re-minting if new `actualRtt` improves on previous
+  - Mints token ID = threshold value (e.g., Diamond = token 15)
+  - Emits `Verified(user, epoch, threshold, actualRtt)` event
+- **Verifier Contract:** `RttThresholdVerifier.sol`
+  - Auto-generated from Noir circuit
+  - Uses Barretenberg's PLONK verifier (Solidity)
+  - Gas-efficient verification (~300k gas)
+
+### **Step 6: On-Chain Leaderboard**
+- **What happens:** Frontend queries `Verified` events to build leaderboard
+- **Technology:**
+  - **viem** (TypeScript Ethereum library)
+  - **Event filtering** over 50,000 blocks (~28 hours)
+  - **Pagination** (2000 blocks per query to avoid rate limits)
+- **Ranking Logic:**
+  - Groups by wallet address
+  - Keeps best `actualRtt` per user (lower is better)
+  - Sorts by latency, then timestamp (earlier is better for ties)
+
+## 🛠️ Technology Stack
+
+### **Frontend**
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS + shadcn/ui
+- **Wagmi v2** (React hooks for Ethereum)
+- **RainbowKit** (wallet connection UI)
+- **viem** (low-level Ethereum interactions)
+
+### **Zero-Knowledge**
+- **Noir** v1.0.0-beta.12 (circuit language)
+- **Barretenberg (bb.js)** (PLONK prover, WASM in browser)
+- **Poseidon hash** (ZK-friendly, used in Merkle tree)
+
+### **Smart Contracts**
+- **Solidity** ^0.8.25
+- **Foundry** (development framework: forge, cast, anvil)
+- **OpenZeppelin** (ERC-1155, Ownable, access control)
+- **Custom verifier contract** (generated from Noir circuit)
+
+### **Blockchain**
+- **Base Sepolia** testnet (Optimistic rollup, low fees)
+- **Alchemy RPC** (development)
+- **Base Public RPC** (production leaderboard queries)
+
+### **Backend**
+- Next.js API routes (serverless)
+- **Upstash Redis Cloud** (persistent storage)
+- Node.js crypto (nonce generation)
+- **ethers.js / viem** (wallet for backend transactions)
+
+## 🔑 Key Cryptographic Components
+
+### **1. Poseidon Hash Function**
+- **Why:** SNARK-friendly (uses only 8 constraints in circuit vs 25,000 for SHA-256)
+- **Where:** Merkle tree leaf hashing, tree construction
+- **Benefit:** 10x cheaper gas costs for verification
+
+### **2. Merkle Tree Proof**
+- **Purpose:** Prove a sample exists in the committed set without revealing others
+- **Structure:** Binary tree with 32 leaves (2^5 depth)
+- **Verification:** O(log n) = 5 hashes per sample in circuit
+
+### **3. PLONK Proof System**
+- **Type:** Universal SNARK (no trusted setup per circuit)
+- **Proof size:** 256 bytes (constant, regardless of circuit complexity)
+- **Verification:** ~300k gas (cheap enough for Base Sepolia)
+
+### **4. Challenge-Response Protocol**
+- **Purpose:** Prevent pre-computed or replayed test results
+- **Mechanism:** 
+  - Server generates random nonce per challenge
+  - Client must respond within time window
+  - Nonce included in Merkle leaf (ties result to specific test)
+
+## 📊 Privacy Model
+
+| Who Sees What | Raw RTT Data | Merkle Root | ZK Proof | Badge Tier | Actual RTT |
+|---------------|--------------|-------------|----------|------------|------------|
+| **User (you)** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Backend Verifier** | ✅ Yes | ✅ Yes | ❌ No | ❌ No | ❌ No |
+| **Blockchain / Public** | ❌ No | ✅ Yes | ❌ No (just hash) | ✅ Yes | ✅ Yes* |
+
+*Note: `actualRtt` is emitted for leaderboard transparency, but individual sample values and timestamps remain private.
+
+### **Why this matters vs. traditional systems (Ookla, etc.)**
+- **Traditional:** Centralized service sees AND controls your data (trust required)
+- **zk-SLA:** 
+  - Backend sees raw data but **cannot forge proofs** (Merkle root is on-chain)
+  - Blockchain verifies proofs but **never sees raw samples** (zero-knowledge)
+  - You own the proof and badge (ERC-1155 NFT, fully decentralized)
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- Node.js 20+
-- Foundry (for smart contracts)
-- Rust (for Noir circuits)
-- Web3 wallet with testnet ETH
-
-### Installation
-
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/zk-sla.git
-cd zk-sla
-
 # Install dependencies
 npm install
 
-# Set up environment
-cp app/.env.example app/.env
-# Edit app/.env with your configuration
-```
-
-### Development
-
-```bash
-# Start all services in development mode
+# Run development server
 npm run dev
 
-# Or start individually:
-cd app && npm run dev          # Frontend (http://localhost:3000)
-cd verifier && npm run dev     # Backend (ws://localhost:3001)
-cd contracts && forge test     # Test contracts
+# Deploy contracts
+cd contracts && forge script script/DeployProduction.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast
 ```
 
-### Deployment
+## 📄 License
 
-```bash
-# Deploy smart contracts
-cd contracts
-forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast
-
-# Build and deploy frontend
-cd app
-npm run build
-
-# Start production services
-npm start
-```
-
-## 📁 Project Structure
-
-```
-zk-sla/
-├── contracts/           # Solidity smart contracts
-│   ├── src/
-│   │   ├── EpochManager.sol    # Manages epoch roots
-│   │   ├── ZkSLA1155.sol       # Badge minting contract
-│   │   └── MockVerifier.sol    # Demo ZK verifier
-│   ├── script/Deploy.s.sol     # Deployment script
-│   └── test/                   # Contract tests
-├── circuits/            # Noir ZK circuits
-│   └── rtt_threshold/
-│       └── src/main.nr         # Main circuit logic
-├── verifier/           # Backend service
-│   ├── src/
-│   │   ├── server.ts          # WebSocket server
-│   │   ├── merkle.ts          # Merkle tree utilities
-│   │   └── submitRoot.ts      # Blockchain integration
-│   └── package.json
-├── app/                # Next.js frontend
-│   ├── src/
-│   │   ├── app/               # Pages and layouts
-│   │   ├── components/        # Reusable components
-│   │   └── lib/               # Utilities and services
-│   └── package.json
-└── scripts/            # Development utilities
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create `app/.env` from `app/.env.example`:
-
-```bash
-# Wallet Connect Project ID
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_project_id
-
-# RPC URLs
-NEXT_PUBLIC_BASE_SEPOLIA_RPC=https://sepolia.base.org
-NEXT_PUBLIC_SEPOLIA_RPC=https://ethereum-sepolia-rpc.publicnode.com
-
-# Contract Addresses (set after deployment)
-NEXT_PUBLIC_EPOCH_MANAGER_ADDR=0x...
-NEXT_PUBLIC_ZKSLA_ADDR=0x...
-NEXT_PUBLIC_MOCK_VERIFIER_ADDR=0x...
-
-# Backend Service
-NEXT_PUBLIC_VERIFIER_URL=ws://localhost:3001
-```
-
-Backend `.env` (verifier service):
-
-```bash
-RPC_URL=https://sepolia.base.org
-VERIFIER_PRIVKEY=0x...  # Private key for submitting roots
-EPOCH_MANAGER_ADDR=0x...
-PORT=3001
-```
-
-## 🧪 Testing
-
-```bash
-# Test smart contracts
-cd contracts && forge test
-
-# Test backend services
-cd verifier && npm test
-
-# Test frontend components
-cd app && npm test
-
-# Run end-to-end tests
-npm run test:e2e
-```
-
-## 📊 Performance Tiers
-
-Users can earn badges for different performance levels:
-
-- **🥇 Premium (≤75ms)**: High-performance networks
-- **🥈 Standard (≤150ms)**: Most common tier for good connections
-- **🥉 Basic (≤300ms)**: Acceptable performance level
-
-Each tier requires proving that ≥28 out of 32 RTT samples meet the threshold.
-
-## 🔐 Security & Privacy
-
-### Why This Can't Be Done with Traditional Means
-
-Traditional performance verification systems have fundamental privacy and trust issues:
-
-1. **Centralized Trust Problem**
-   - Traditional systems require users to **send raw RTT data** to a central server
-   - The server operator can see exact latencies, timestamps, and IP addresses
-   - Users must trust the operator won't log, sell, or misuse this data
-   - **No way to prove** the operator isn't collecting private telemetry
-
-2. **Data Leakage**
-   - Raw RTT logs reveal:
-     - Geographic location patterns
-     - ISP and network infrastructure details
-     - Usage times and frequency
-     - Network topology information
-   - This data is valuable for targeted advertising and surveillance
-
-3. **Audit Impossibility**
-   - Even if a company claims "we don't log data," **you can't verify it**
-   - Closed-source backends can collect anything without detection
-   - Database logs, analytics tools, and error reporting can leak data
-   - Third-party dependencies may exfiltrate information
-
-4. **Manipulation Risk**
-   - Centralized servers can arbitrarily issue performance badges
-   - No cryptographic proof that tests were actually conducted
-   - Server operator could sell badges or manipulate results
-
-### How Zero-Knowledge Solves This
-
-Our ZK approach provides **cryptographic guarantees** that traditional systems cannot:
-
-**1. Provable Privacy**
-- Raw RTT measurements **never leave your browser**
-- Only a mathematical proof is generated and submitted
-- The proof reveals **only**: "≥28 of 32 samples were ≤150ms"
-- Actual latency values, timestamps, and sequence remain hidden
-
-**2. Verifiable Non-Collection**
-- **Open source contracts**: All on-chain verification logic is public
-- **Open source frontend**: Review the code to confirm no data leaves your device
-- **Mathematical guarantee**: The ZK proof system cannot extract hidden information
-- **Blockchain transparency**: All transactions are public and auditable
-
-**3. How You Can Verify We Don't Collect Data**
-
-You can personally audit the system:
-
-```bash
-# 1. Inspect the frontend source code
-git clone https://github.com/your-org/zk-sla
-cd app
-grep -r "fetch\|axios\|XMLHttpRequest" src/  # Check for network calls
-
-# 2. Monitor network traffic during testing
-# Open browser DevTools → Network tab → Run test
-# You'll see ONLY:
-#   - WebSocket connection for RTT challenges (ephemeral, no logging)
-#   - One transaction to submit proof (contains no raw data)
-
-# 3. Verify the smart contract
-# Visit Basescan, read the contract source code
-# The verifyAndMint() function accepts:
-#   - proof (mathematical object, not raw data)
-#   - public inputs (threshold, sample count, epoch)
-# It does NOT accept or store individual RTT measurements
-```
-
-**4. Cryptographic Properties**
-
-- **Zero-Knowledge**: Prover (you) reveals no information beyond "statement is true"
-- **Soundness**: Cannot create fake proofs (computational security)
-- **Completeness**: Valid proofs always verify correctly
-- **Non-Malleability**: Proofs cannot be modified or replayed
-
-### Privacy Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  YOUR BROWSER (Private)                                     │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 1. Receive 32 RTT challenges                        │   │
-│  │ 2. Measure latencies: [12ms, 45ms, 89ms, ...]      │   │
-│  │ 3. Generate ZK proof of "≥28 ≤ 150ms"              │   │
-│  │                                                      │   │
-│  │ ⚠️  Raw data NEVER transmitted                      │   │
-│  └─────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                           │
-                           │ Submit: proof + public inputs
-                           ▼
-                  ┌────────────────────┐
-                  │  Smart Contract    │
-                  │  (Public, Auditable)│
-                  │                    │
-                  │  Verifies proof ✓  │
-                  │  Mints badge       │
-                  └────────────────────┘
-```
-
-### What Information IS Public?
-
-To be transparent, here's what IS visible on-chain:
-
-- **Your wallet address**: Public (required for badge minting)
-- **Threshold you claimed**: e.g., "≤150ms" (from public inputs)
-- **Epoch ID**: Which test session (for Merkle root lookup)
-- **Transaction hash**: Standard blockchain record
-
-What remains PRIVATE:
-- ❌ Individual RTT measurements
-- ❌ Exact latency values
-- ❌ Timestamps of samples
-- ❌ Which 28 samples you selected
-- ❌ Your IP address or geographic location
-- ❌ Your ISP or network details
-
-### Trust Assumptions
-
-We're honest about what you still need to trust:
-
-1. **Verifier Service**: Must provide authentic RTT challenges
-   - Mitigation: Nonces are cryptographically random
-   - Future: Multi-verifier decentralization
-
-2. **Browser Environment**: Must execute code correctly
-   - Mitigation: Use open-source browsers with security audits
-   - JavaScript VM is sandboxed from network
-
-3. **Blockchain Security**: Base Sepolia must remain secure
-   - Mitigation: Use audited L2 with strong validator set
-
-**Crucially, you do NOT need to trust us** with your performance data—the ZK proof system makes data collection mathematically impossible.
-
-## 🛠️ Technical Details
-
-### ZK Circuit
-
-The Noir circuit proves:
-1. **m-of-n compliance**: ≥28 out of 32 RTTs are ≤ threshold
-2. **Merkle inclusion**: Each sample belongs to the committed tree
-3. **Uniqueness**: No duplicate indices used
-4. **Bounds checking**: All indices within valid range
-
-### Smart Contracts
-
-- **EpochManager**: Stores Merkle roots for each epoch
-- **ZkSLA1155**: Verifies proofs and mints performance badges
-- **Gas Optimized**: ~200-300k gas per verification on Base Sepolia
-
-### Cryptography
-
-- **Hash Function**: Poseidon (ZK-friendly)
-- **Merkle Trees**: Poseidon-based with 16-level depth
-- **Proof System**: Groth16 via Noir/Barretenberg
-- **Field**: BN254 for Ethereum compatibility
-
-## 🎨 UI Design
-
-The interface features a minimalist dark theme with:
-- **Colors**: Dark background (`#0B0D10`) with gradient accents
-- **Typography**: Inter font with tight tracking
-- **Components**: Shadcn/ui with custom styling
-- **Animation**: Framer Motion for smooth transitions
-- **Icons**: Lucide React icon set
-
-## 🚀 Deployment Guide
-
-### 1. Deploy Smart Contracts
-
-```bash
-cd contracts
-
-# Deploy to Base Sepolia
-forge script script/Deploy.s.sol \
-  --rpc-url https://sepolia.base.org \
-  --private-key $PRIVATE_KEY \
-  --broadcast \
-  --verify
-```
-
-### 2. Start Backend Service
-
-```bash
-cd verifier
-npm run build
-npm start
-```
-
-### 3. Deploy Frontend
-
-```bash
-cd app
-npm run build
-
-# Deploy to Vercel
-npx vercel deploy
-
-# Or serve locally
-npm start
-```
-
-## 📈 Future Enhancements
-
-- **Multi-Verifier**: Decentralized network of RTT verifiers
-- **Advanced Metrics**: Bandwidth, jitter, packet loss proofs
-- **DeFi Integration**: Use badges as collateral or governance tokens
-- **Mobile Support**: React Native app with mobile proving
-- **Analytics**: Performance trends and network insights
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Aztec Labs** - Noir zero-knowledge language
-- **Foundry** - Ethereum development framework
-- **RainbowKit** - Wallet connection components
-- **Vercel** - Deployment and hosting platform
-
----
-
-**Built with ❤️ for the future of private DePIN verification**
+MIT
