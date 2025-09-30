@@ -1,11 +1,9 @@
 {
-  "buildCommand": "cd app && npm run build",
   "framework": "nextjs",
+  "buildCommand": "cd app && npm run build",
   "installCommand": "cd app && npm install",
-  "outputDirectory": "app/.next",
   "functions": {
-    "app/app/api/**/*.ts": {
-      "runtime": "nodejs20.x",
+    "app/api/**/*.ts": {
       "maxDuration": 30
     }
   }
