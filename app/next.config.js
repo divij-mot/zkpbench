@@ -1,13 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    // Disable ESLint during builds (errors won't block deployment)
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    // Also ignore TypeScript errors during builds if needed
-    ignoreBuildErrors: false,
-  },
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', '*.vercel.app']
@@ -55,8 +47,20 @@ const nextConfig = {
       config.plugins.push(
         new webpack.DefinePlugin({
           'global.indexedDB': 'undefined',
+          'indexedDB': 'undefined',
+          'self.indexedDB': 'undefined'
         })
       );
+    }
+    
+    // Ignore bb.js and noir during server-side builds
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        '@aztec/bb.js': 'commonjs @aztec/bb.js',
+        '@noir-lang/backend_barretenberg': 'commonjs @noir-lang/backend_barretenberg',
+        '@noir-lang/noir_js': 'commonjs @noir-lang/noir_js'
+      });
     }
 
     return config;

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+// import { Button } from '@/components/ui/button';
+// import { Card, CardContent } from '@/components/ui/card';
+// import { Progress } from '@/components/ui/progress';
 import { Play, Zap, Activity, Award, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 

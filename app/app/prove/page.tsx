@@ -15,6 +15,8 @@ interface TestResults {
     valid: boolean;
   }>;
   bestTier: number;
+  flowToken?: string;
+  timestamp?: number;
 }
 
 export default function ProvePage() {

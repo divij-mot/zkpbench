@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
 import { CheckCircle2, ExternalLink, Award, AlertCircle } from 'lucide-react';
 import { CONTRACTS, ZK_SLA_1155_ABI, CHAIN_CONFIG } from '@/lib/contracts';
-import { parseEther, hexToBigInt } from 'viem';
+import { hexToBigInt } from 'viem';
 
 interface ProofData {
   proof: string;

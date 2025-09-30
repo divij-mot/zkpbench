@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { CONTRACTS, ZK_SLA_1155_ABI } from '@/lib/contracts';
+import { CONTRACTS } from '@/lib/contracts';
 
 interface LeaderboardEntry {
   address: string;
