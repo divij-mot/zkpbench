@@ -18,20 +18,16 @@ if command -v nargo >/dev/null 2>&1; then
     cd rtt_threshold
     nargo check
     nargo compile
+    cd ../..
     echo "✅ Circuits built successfully"
 else
+    cd ..
     echo "⚠️ Nargo not available, skipping circuit build"
 fi
 
-# Build backend
-echo "🔗 Building backend service..."
-cd ../../verifier
-npm run build
-echo "✅ Backend built successfully"
-
-# Build frontend
+# Build frontend (includes API routes - no separate backend needed)
 echo "📱 Building frontend..."
-cd ../app
+cd app
 npm run build
 echo "✅ Frontend built successfully"
 
