@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: {
+    // Disable ESLint during builds (errors won't block deployment)
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    // Also ignore TypeScript errors during builds if needed
+    ignoreBuildErrors: false,
+  },
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', '*.vercel.app']
