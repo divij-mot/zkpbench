@@ -34,14 +34,14 @@ export async function GET() {
     const latestBlock = await publicClient.getBlockNumber();
     
     // Public RPC has no rate limits - we can query large ranges!
-    // Query last 50,000 blocks (~28 hours of history)
-    const blocksToQuery = 50000n;
+    // Query last 1,000,000 blocks (~28 hours of history)
+    const blocksToQuery = 1000000n;
     const startBlock = latestBlock > blocksToQuery ? latestBlock - blocksToQuery : 0n;
     
     console.log(`📊 Querying blocks ${startBlock} to ${latestBlock} (${blocksToQuery} blocks)`);
 
-    // With public RPC, we can query in larger chunks (1000-2000 blocks per request)
-    const batchSize = 2000n;
+    // With public RPC, we can query in larger chunks (10000 blocks per request)
+    const batchSize = 10000n;
     const allLogs: any[] = [];
     let currentBlock = startBlock;
     
