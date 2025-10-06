@@ -55,7 +55,7 @@ transcripts and information.
 
 Using the ideas defined above, I built a system which proves latencies for DePIN systems without
 revealing raw RTTs, indices, IPs, or timestamps to any external verifier (and latency information is
-directly receivable on chain). Only the backend sees private data, and the backend can be built of multiple
+directly receivable on chain). Nearly all data is kept on device, with side data getting sent to the backend, and the backend can be built of multiple
 decentralized oracles or examining systems.
 
 Workflow:
